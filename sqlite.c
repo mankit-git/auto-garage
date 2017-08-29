@@ -115,11 +115,13 @@ int sqlite(sqlite3 *db, struct info *cardinfo)
 		exit(0);
 	}
 	create_table(db);
-	sqlite3_insert(db, cardinfo);
+	int car_in = sqlite3_insert(db, cardinfo);
 	display(db);
+
+	return car_in;
 }
 
-int out_table(time_t t_car_in, sqlite3 *db, struct info *cardinfo)
+int out_table(sqlite3 *db, struct info *cardinfo)
 {
 	int ret = sqlite3_open("cardinfo.db", &db);
 	if(ret < 0)
@@ -128,9 +130,13 @@ int out_table(time_t t_car_in, sqlite3 *db, struct info *cardinfo)
 		exit(0);
 	}
 	sqlite3_del(db, cardinfo);
-	/*time_t t_car_out;
-	int money = ((t_car_out - t_car_in)/3600)*5;
+	time_t t_car_out;
+	time(&t_car_out);
+	cardinfo->time = ctime(&t_car_out);
+	printf("当前时间：%s\n", cardinfo->time);
+	/*int money = ((t_car_out - t_car_in)/3600)*5;
 	printf("你消费%d元\n", money);
 	printf("goodbye!have a good day!\n");*/
 	display(db);
+	return t_car_out;
 }

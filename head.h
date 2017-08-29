@@ -63,8 +63,8 @@ int callback(void *data, int n, char **cloumn_name, char **cloumn_value);
 int sqlite3_del(sqlite3 *db, struct info *cardinfo);
 int sqlite(sqlite3 *db, struct info *cardinfo);
 //int in_table(sqlite3 *db, struct info *cardinfo);
-int out_table(time_t t_car_in, sqlite3 *db, struct info *cardinfo);
-int car_pos(time_t t_car_in, int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo);
+int out_table(sqlite3 *db, struct info *cardinfo);
+int car_pos(int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo);
 
 void init_tty(int fd);
 unsigned char CalBCC(unsigned char *buf, int n);

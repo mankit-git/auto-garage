@@ -41,15 +41,11 @@ int touchlcd(int ts, struct coordinate *xy)
 		{
 			if(buf.code == ABS_Y)
 			{
-				flag2 = 1;
 				xy->y = buf.value;
-				printf("y: %d\n", xy->y);
 			}
 			if(buf.code == ABS_X)
 			{
-				flag1 = 1;
 				xy->x = buf.value;
-				printf("x: %d\n", xy->x);
 			}
 
 		}
@@ -83,11 +79,13 @@ int judge(int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo)
 
 }
 
-int car_pos(time_t t_car_in, int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo)
+int car_pos(int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo)
 {
 	while(1)
 	{	
 		int ret = judge(ts, xy, db, cardinfo);
+		unsigned int in_car;
+		unsigned int out_car;
 		if(ret == 1)
 		{
 			printf("touch OK!\n");
@@ -96,7 +94,7 @@ int car_pos(time_t t_car_in, int ts, struct coordinate *xy, sqlite3 *db, struct 
 			cardid = getcardid();
 			flag = 0;
 			beep();
-			sqlite(db, cardinfo);
+			in_car = sqlite(db, cardinfo);
 		}
 		if(ret == 2)
 		{
@@ -106,7 +104,17 @@ int car_pos(time_t t_car_in, int ts, struct coordinate *xy, sqlite3 *db, struct 
 			cardid = getcardid();
 			flag = 1;
 			beep();
-			out_table(t_car_in, db, cardinfo);
+			out_car = out_table(db, cardinfo);
+			int total = ((out_car - in_car)/3600);
+			int money = 0;
+			if(total < 1)
+			{
+				money = (total+1) * 5;
+			}
+			else
+				money = total * 5;
+			printf("你消费%d元\n", money);
+			printf("goodbye!have a good day!\n");
 		}	
 		if(ret == -1)
 		{

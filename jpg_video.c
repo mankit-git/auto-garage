@@ -191,8 +191,7 @@ void *routine(void *arg)
 		exit(0);
 	}
 	printf("%d\n", __LINE__);
-	time_t t_car_in;
-	car_pos(t_car_in, ts, xy, db, cardinfo);	
+	car_pos(ts, xy, db, cardinfo);	
 	printf("%d\n", __LINE__);
 
 	pthread_exit(NULL);
