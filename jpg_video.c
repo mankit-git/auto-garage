@@ -1,29 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <string.h>
-#include <strings.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include "jpeglib.h"
-#include <errno.h>
-#include <linux/fb.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#include <linux/input.h>
-#include <sys/mman.h>
-#include <linux/videodev2.h>
-#include <setjmp.h>
+#include "head.h"
 
-
-struct image_info
-{
-	int width;
-	int height;
-	int pixel_size;
-};
+int flag = 1;
 
 char *shooting(char *jpegdata, int size, struct image_info *image_info)
 {	
@@ -78,8 +55,9 @@ char *shooting(char *jpegdata, int size, struct image_info *image_info)
 }
 
 void write_lcd(unsigned char *FB, struct fb_var_screeninfo *vinfo, 
-				unsigned char *rgb_buffer, struct image_info *imageinfo)
+		unsigned char *rgb_buffer, struct image_info *imageinfo, int xoffset, int yoffset)
 {
+	FB += (xoffset + yoffset*vinfo->xres)*vinfo->bits_per_pixel/8;
 	int x, y;
 	for(y=0; y<imageinfo->height && y<vinfo->yres; y++)
 	{
@@ -109,31 +87,8 @@ void show_camfmt(struct v4l2_format *fmt)
 	}
 }
 
-int main(int argc, char **argv)
+int camera(int cam_fd, struct fb_var_screeninfo lcdinfo)
 {
-	//打开LCD设备
-	int lcd = open("/dev/fb0", O_RDWR);
-
-	//获取LCD显示器的设备参数
-	struct fb_var_screeninfo lcdinfo;
-	ioctl(lcd, FBIOGET_VSCREENINFO, &lcdinfo);
-
-	//申请一块适当跟LCD尺寸大小一样的显存
-	unsigned char *fb_mem = mmap(NULL, lcdinfo.xres *lcdinfo.yres *lcdinfo.bits_per_pixel/8,
-			PROT_READ | PROT_WRITE, MAP_SHARED, lcd, 0);
-	
-	//将屏幕刷成黑色
-	unsigned long black = 0x0;
-	unsigned int i;
-	for(i=0; i<lcdinfo.xres *lcdinfo.yres; i++)
-	{
-		memcpy(fb_mem+i, &black, sizeof(unsigned long));
-	}
-	//*****************************************************//
-	
-	//打开摄像头设备文件
-	int cam_fd = open("/dev/video7", O_RDWR);
-
 	struct v4l2_fmtdesc *a = calloc(1, sizeof(*a));
 	a->index = 0;
 	a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -193,6 +148,108 @@ int main(int argc, char **argv)
 	//使用该参数reqbuf来申请缓存
 	ioctl(cam_fd, VIDIOC_REQBUFS, &reqbuf);
 
+	return nbuf;
+}
+
+int catchjpg(char *data, int size)
+{
+	char pic_name[30];
+	time_t t = time(NULL);
+	struct tm *lt = localtime(&t);
+	char timebuf[20];
+	bzero(timebuf, 20);
+	strftime(timebuf, 20, "%F %T", lt);
+	sprintf(pic_name, "%s.jpg", timebuf);
+	int jpg_fd = open(pic_name, O_RDWR | O_CREAT, 0666);
+	if(jpg_fd < 0)
+	{
+		perror("open() failed");
+		return -1;
+	}
+
+	printf("write %d size jpgdata\n", size);
+	int ret = write(jpg_fd, data, size);
+	if(ret != size)
+	{
+		perror("write() failed");
+		exit(0);
+	}
+
+	close(jpg_fd);
+}
+
+void *routine(void *arg)
+{
+	pthread_detach(pthread_self());
+	struct info *cardinfo = calloc(1, sizeof(struct info));
+	extern sqlite3 *db;
+	struct coordinate *xy = calloc(1, sizeof(struct coordinate));
+	int ts = open("/dev/input/event0", O_RDONLY);
+	if(ts == -1)
+	{
+		perror("open() failed");
+		exit(0);
+	}
+	printf("%d\n", __LINE__);
+	time_t t_car_in;
+	car_pos(t_car_in, ts, xy, db, cardinfo);	
+	printf("%d\n", __LINE__);
+
+	pthread_exit(NULL);
+}
+
+int main(int argc, char **argv)
+{
+	//打开LCD设备
+	int lcd = open("/dev/fb0", O_RDWR);
+
+	// 获取文件的属性
+	struct stat file_info;
+	stat("1.jpg", &file_info);
+
+	// 打开jpeg文件
+	int fd = open("1.jpg", O_RDWR);
+	if(fd == -1)
+	{
+		printf("open the 1.jpg failed\n");
+	}
+
+	// 根据获取的stat信息中的文件大小，来申请一块恰当的内存，用来存放jpeg编码的数据
+	unsigned char *jpg_buffer = calloc(1, file_info.st_size);
+	char *jpg_buf = read_image_from_file(fd, jpg_buffer, file_info.st_size);
+
+	//获取LCD显示器的设备参数
+	struct fb_var_screeninfo lcdinfo;
+	ioctl(lcd, FBIOGET_VSCREENINFO, &lcdinfo);
+
+	//申请一块适当跟LCD尺寸大小一样的显存
+	unsigned char *fb_mem = mmap(NULL, lcdinfo.xres *lcdinfo.yres *lcdinfo.bits_per_pixel/8,
+			PROT_READ | PROT_WRITE, MAP_SHARED, lcd, 0);
+	
+	//将屏幕刷成黑色
+	unsigned long black = 0x0;
+	int i;
+	for(i=0; i<lcdinfo.xres *lcdinfo.yres; i++)
+	{
+		memcpy(fb_mem+i, &black, sizeof(unsigned long));
+	}
+	//*****************************************************//
+
+	pthread_t tid;
+	pthread_create(&tid, NULL, routine, NULL);
+
+	//打开摄像头设备文件
+	int cam_fd = open("/dev/video0", O_RDWR);
+
+	int ts = open("/dev/input/event0", O_RDONLY);
+	if(ts == -1)
+	{
+		perror("open() failed");
+		exit(0);
+	}
+
+	int nbuf = camera(cam_fd, lcdinfo);
+
 	//根据刚刚设置的reqbuf.count的值， 来定义相应数量的struct v4l2_buffer
 	//每一个struct v4l2_buffer对应内涵摄像头驱动中的一个缓存
 	struct v4l2_buffer buffer[nbuf];
@@ -223,23 +280,33 @@ int main(int argc, char **argv)
 	v4lbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	v4lbuf.memory = V4L2_MEMORY_MMAP;
 
+
 	i = 0;
 	struct image_info *image_info = calloc(1, sizeof(struct image_info));
+	struct image_info *jpg_info = calloc(1, sizeof(struct image_info));	
+	unsigned char *show_jpg = shooting(jpg_buf, file_info.st_size, jpg_info);
+	write_lcd(fb_mem, &lcdinfo, show_jpg, jpg_info, 640, 0);
 	while(1)
 	{
 		//从队列中取出填满数据的缓存
 		v4lbuf.index = i%nbuf;
 		ioctl(cam_fd, VIDIOC_DQBUF, &v4lbuf);
 		unsigned char *rgb_buf = shooting(start[i%nbuf], length[i%nbuf], image_info);
-		write_lcd(fb_mem, &lcdinfo, rgb_buf, image_info);
+		write_lcd(fb_mem, &lcdinfo, rgb_buf, image_info, 0, 0);
+		if(flag == 0)
+		{
+			catchjpg(start[i%nbuf], length[i%nbuf]);
+			flag = 1;
+		}
 		free(rgb_buf);
+		//free(show_jpg);
 
 		 //将已经读取过数据的缓存块重新植入队列中
 		v4lbuf.index = i%nbuf;
 		ioctl(cam_fd, VIDIOC_QBUF, &v4lbuf);
 
 		i++;
-	}
+	}	
 
 	return 0;
 }
