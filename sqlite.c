@@ -134,9 +134,34 @@ int out_table(sqlite3 *db, struct info *cardinfo)
 	time(&t_car_out);
 	cardinfo->time = ctime(&t_car_out);
 	printf("当前时间：%s\n", cardinfo->time);
-	/*int money = ((t_car_out - t_car_in)/3600)*5;
-	printf("你消费%d元\n", money);
-	printf("goodbye!have a good day!\n");*/
+	printf("goodbye!have a good day!\n");
 	display(db);
 	return t_car_out;
+}
+
+int madplay(struct info *cardinfo)
+{
+	printf("carnum: %s\n", cardinfo->carnum);
+	char music[50];
+	bzero(music, 50);
+	char english[50];
+	bzero(english, 50);
+	sprintf(english, "./madplay snd/yue.mp3 -a -18 &");
+	printf("english: %s", english);
+	system(english);
+	sleep(1);
+	int i;
+	for(i=3; cardinfo->carnum[i] != '\0'; i++)
+	{
+		system("killall madplay");
+		sprintf(music, "./madplay snd/%c.mp3 -a -18 &", cardinfo->carnum[i]);
+		printf("music: %s", music);
+		system(music);
+		/*if(i = 1)
+		{
+			usleep(1500000);
+		}
+		else*/
+			sleep(1);
+	}
 }

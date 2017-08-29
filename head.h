@@ -24,7 +24,7 @@
 #include <termios.h>
 #include "sqlite3.h"
 
-#define DEV_PATH   "/dev/ttySAC1"
+#define DEV_PATH   "/dev/ttySAC2"
 
 unsigned int cardid ;
 //sqlite3 *db;
@@ -65,6 +65,7 @@ int sqlite(sqlite3 *db, struct info *cardinfo);
 //int in_table(sqlite3 *db, struct info *cardinfo);
 int out_table(sqlite3 *db, struct info *cardinfo);
 int car_pos(int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo);
+int madplay(struct info *cardinfo);
 
 void init_tty(int fd);
 unsigned char CalBCC(unsigned char *buf, int n);

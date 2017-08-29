@@ -95,6 +95,7 @@ int car_pos(int ts, struct coordinate *xy, sqlite3 *db, struct info *cardinfo)
 			flag = 0;
 			beep();
 			in_car = sqlite(db, cardinfo);
+			madplay(cardinfo);
 		}
 		if(ret == 2)
 		{
